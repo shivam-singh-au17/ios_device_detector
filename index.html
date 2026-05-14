@@ -64,13 +64,26 @@
   }
 
   // ── UA Client Hints (Chrome / Edge only) ───────────────────────────────────
+  // Cached in sessionStorage so refresh never gives a different result.
   async function getClientHints() {
+    const KEY = "di_hints_v1";
+    try {
+      const hit = sessionStorage.getItem(KEY);
+      if (hit) return JSON.parse(hit);
+    } catch {}
     try {
       if (!navigator.userAgentData) return null;
-      return await navigator.userAgentData.getHighEntropyValues(
+      const h = await navigator.userAgentData.getHighEntropyValues(
         ["platform", "platformVersion", "model", "mobile", "architecture"]
       );
+      try { sessionStorage.setItem(KEY, JSON.stringify(h)); } catch {}
+      return h;
     } catch { return null; }
+  }
+
+  // ── macOS marketing name helper ────────────────────────────────────────────
+  function macOSName(major) {
+    return { 15: "Sequoia", 14: "Sonoma", 13: "Ventura", 12: "Monterey", 11: "Big Sur" }[major] || "";
   }
 
   // ── Fields config ──────────────────────────────────────────────────────────
@@ -137,21 +150,32 @@
   // ── OS version ─────────────────────────────────────────────────────────────
   function getOSVersion(platform, hints) {
     const ua = navigator.userAgent;
+    // Chromium browsers (Chrome, Edge, Opera) freeze the UA string —
+    // macOS always shows "10_15_7" and Android may show an old version.
+    // When on Chromium without Client Hints, don't show the frozen value.
+    const isChromium = !!navigator.userAgentData;
 
-    // Client Hints: accurate Windows 10 vs 11, exact macOS/Android version
+    // Client Hints path — always accurate, not frozen
     if (hints?.platformVersion) {
-      const major = parseInt(hints.platformVersion.split(".")[0], 10);
+      const ver   = hints.platformVersion;
+      const major = parseInt(ver.split(".")[0], 10);
       if (platform.family === "Windows") {
         if (major >= 13) return "Windows 11";
         if (major >= 1)  return "Windows 10";
+        return "Windows 10 / 11";
       }
-      if (platform.family === "macOS")  return `macOS ${hints.platformVersion}`;
-      if (platform.family === "Android") return `Android ${hints.platformVersion}`;
+      if (platform.family === "macOS") {
+        const mkt = macOSName(major);
+        return mkt ? `macOS ${mkt} ${ver}` : `macOS ${ver}`;
+      }
+      if (platform.family === "Android") return `Android ${ver}`;
     }
 
+    // UA fallback
     switch (platform.family) {
       case "iOS":
       case "iPadOS": {
+        // Safari never freezes iOS version
         const m = ua.match(/OS (\d+)[_.](\d+)(?:[_.](\d+))?/);
         return m ? `${platform.family} ${m[1]}.${m[2]}${m[3] ? "." + m[3] : ""}` : platform.family;
       }
@@ -166,8 +190,13 @@
         return map[m[1]] || `Windows NT ${m[1]}`;
       }
       case "macOS": {
+        // Chrome freezes macOS UA at "10_15_7" — never show that wrong value
+        if (isChromium) return "macOS";
         const m = ua.match(/Mac OS X ([\d_]+)/);
-        return m ? `macOS ${m[1].replace(/_/g, ".")}` : "macOS";
+        if (!m) return "macOS";
+        const ver = m[1].replace(/_/g, ".");
+        const mkt = macOSName(parseInt(ver.split(".")[0], 10));
+        return mkt ? `macOS ${mkt} ${ver}` : `macOS ${ver}`;
       }
       case "Chrome OS": {
         const m = ua.match(/CrOS\s+\S+\s+([\d.]+)/);
