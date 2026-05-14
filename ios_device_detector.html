@@ -1,203 +1,67 @@
-<style>
-  :root {
-    color-scheme: light;
-    --bg: #f4f7fb;
-    --surface: #ffffff;
-    --surface-strong: #f2f5fb;
-    --border: #d7dde7;
-    --border-strong: #c2c9d6;
-    --text: #1f2937;
-    --text-secondary: #475569;
-    --text-muted: #64748b;
-    --accent: #1d9e75;
-    --accent-soft: rgba(29, 158, 117, 0.12);
-    --badge: #e2f7f1;
-    --badge-text: #0f5f44;
-    --shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
-  }
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>iOS Device Detector</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.31.0/dist/tabler-icons.min.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
 
-  * {
-    box-sizing: border-box;
-  }
+<h1 class="sr-only">iOS Device Detector — your device information is displayed here</h1>
 
-  html,
-  body {
-    margin: 0;
-    min-height: 100%;
-    font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    background: linear-gradient(180deg, #edf2fb 0%, #f8fafc 100%);
-    color: var(--text);
-  }
+<div class="page-wrapper">
 
-  body {
-    padding: 24px;
-  }
+  <p class="page-label">Device Inspector</p>
 
-  .card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 24px;
-    padding: 22px 24px;
-    margin-bottom: 18px;
-    box-shadow: var(--shadow);
-    max-width: 720px;
-    width: 100%;
-    margin-left: auto;
-    margin-right: auto;
-  }
-
-  .card:first-of-type {
-    margin-top: 24px;
-  }
-
-  .toggle-row,
-  .result-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 12px 0;
-    border-bottom: 1px solid var(--border-strong);
-  }
-
-  .toggle-row:last-child,
-  .result-row:last-child {
-    border-bottom: none;
-  }
-
-  .toggle-row {
-    gap: 14px;
-  }
-
-  .toggle {
-    position: relative;
-    width: 46px;
-    height: 26px;
-  }
-
-  .toggle input {
-    opacity: 0;
-    width: 0;
-    height: 0;
-  }
-
-  .slider-t {
-    position: absolute;
-    inset: 0;
-    background: #dfe7f3;
-    border-radius: 999px;
-    cursor: pointer;
-    transition: background .2s ease;
-  }
-
-  .slider-t:before {
-    content: "";
-    position: absolute;
-    width: 18px;
-    height: 18px;
-    left: 4px;
-    top: 4px;
-    background: #ffffff;
-    border-radius: 50%;
-    transition: transform .2s ease;
-    box-shadow: 0 4px 10px rgba(15, 23, 42, 0.08);
-  }
-
-  input:checked+.slider-t {
-    background: var(--accent);
-  }
-
-  input:checked+.slider-t:before {
-    transform: translateX(20px);
-  }
-
-  .info-label {
-    font-size: 14px;
-    color: var(--text-secondary);
-    line-height: 1.4;
-  }
-
-  .info-val {
-    font-size: 15px;
-    font-weight: 600;
-    color: var(--text);
-    text-align: right;
-  }
-
-  .badge {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    background: var(--badge);
-    color: var(--badge-text);
-    font-size: 12px;
-    padding: 6px 12px;
-    border-radius: 999px;
-    font-weight: 600;
-    letter-spacing: 0.01em;
-  }
-
-  h3 {
-    font-size: 16px;
-    font-weight: 700;
-    margin: 0 0 16px;
-    color: var(--text);
-  }
-
-  .section-title {
-    font-size: 12px;
-    color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.12em;
-    margin: 16px 0 6px;
-  }
-
-  .sr-only {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-    border: 0;
-  }
-</style>
-
-<h2 class="sr-only">iOS Device Detector — your device information is displayed here</h2>
-
-<div class="card" id="device-card">
-  <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
-    <i class="ti ti-device-mobile" style="font-size:22px;color:var(--color-text-secondary);" aria-hidden="true"></i>
-    <div>
-      <div class="info-val" id="device-name">Detecting...</div>
-      <div class="info-label" id="device-os">Loading OS version...</div>
+  <!-- Hero -->
+  <div class="hero-card">
+    <div class="hero-icon-wrap">
+      <i class="ti ti-device-mobile" aria-hidden="true"></i>
     </div>
-    <span class="badge" id="platform-badge" style="margin-left:auto;">—</span>
+    <div class="hero-name" id="device-name">Detecting…</div>
+    <div class="hero-os"   id="device-os">Loading OS version…</div>
+    <span class="hero-badge" id="platform-badge">
+      <i class="ti ti-circle-dot" aria-hidden="true"></i>
+      Detecting
+    </span>
   </div>
-  <div id="results-container"></div>
-</div>
 
-<div class="card">
-  <h3><i class="ti ti-adjustments-horizontal" style="font-size:16px;vertical-align:-2px;margin-right:6px;"
-      aria-hidden="true"></i>Which information should be displayed?</h3>
-  <div id="toggles-container"></div>
+  <!-- Results -->
+  <div class="glass-card" id="results-card">
+    <div class="card-heading">
+      <i class="ti ti-info-circle" aria-hidden="true"></i>
+      Device Information
+    </div>
+    <div id="results-container"></div>
+  </div>
+
+  <!-- Toggles -->
+  <div class="glass-card">
+    <div class="card-heading">
+      <i class="ti ti-adjustments-horizontal" aria-hidden="true"></i>
+      Customize Display
+    </div>
+    <div id="toggles-container"></div>
+  </div>
+
 </div>
 
 <script>
   const fields = [
-    { id: "model", label: "iPhone model (e.g. iPhone 13, 14…)", icon: "ti-device-mobile", default: true },
-    { id: "os", label: "iOS version", icon: "ti-brand-apple", default: true },
-    { id: "screen", label: "Screen resolution", icon: "ti-maximize", default: true },
-    { id: "ratio", label: "Pixel ratio (Retina check)", icon: "ti-photo", default: false },
-    { id: "browser", label: "Browser name and version", icon: "ti-browser", default: true },
-    { id: "lang", label: "Device language", icon: "ti-language", default: false },
-    { id: "memory", label: "RAM (if available)", icon: "ti-cpu", default: false },
-    { id: "cores", label: "CPU cores", icon: "ti-circuit-board", default: false },
-    { id: "battery", label: "Battery level", icon: "ti-battery-2", default: false },
-    { id: "network", label: "Network type (WiFi / 4G / 5G)", icon: "ti-wifi", default: false },
-    { id: "touch", label: "Touch support", icon: "ti-hand-finger", default: false },
-    { id: "standalone", label: "PWA / Homescreen mode", icon: "ti-layout-bottombar", default: false },
+    { id: "model",      label: "iPhone model",              shortLabel: "Model",          icon: "ti-device-mobile",    default: true  },
+    { id: "os",         label: "iOS version",               shortLabel: "iOS Version",    icon: "ti-brand-apple",      default: true  },
+    { id: "screen",     label: "Screen resolution",         shortLabel: "Resolution",     icon: "ti-maximize",         default: true  },
+    { id: "ratio",      label: "Pixel ratio (Retina)",      shortLabel: "Pixel Ratio",    icon: "ti-photo",            default: false },
+    { id: "browser",    label: "Browser name & version",    shortLabel: "Browser",        icon: "ti-browser",          default: true  },
+    { id: "lang",       label: "Device language",           shortLabel: "Language",       icon: "ti-language",         default: false },
+    { id: "memory",     label: "RAM (if available)",        shortLabel: "RAM",            icon: "ti-cpu",              default: false },
+    { id: "cores",      label: "CPU cores",                 shortLabel: "CPU Cores",      icon: "ti-circuit-board",    default: false },
+    { id: "battery",    label: "Battery level",             shortLabel: "Battery",        icon: "ti-battery-2",        default: false },
+    { id: "network",    label: "Network type",              shortLabel: "Network",        icon: "ti-wifi",             default: false },
+    { id: "touch",      label: "Touch support",             shortLabel: "Touch",          icon: "ti-hand-finger",      default: false },
+    { id: "standalone", label: "PWA / Homescreen mode",     shortLabel: "PWA Mode",       icon: "ti-layout-bottombar", default: false },
   ];
 
   const state = {};
@@ -205,76 +69,73 @@
 
   function iOSModel() {
     const ua = navigator.userAgent;
-    const isIOS = /iPhone|iPad|iPod/.test(ua);
-    if (!isIOS) return null;
-
-    const canvas = document.createElement('canvas');
-    const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
-    const w = screen.width, h = screen.height, r = window.devicePixelRatio || 1;
-    const pw = Math.round(w * r), ph = Math.round(h * r);
-
+    if (!/iPhone|iPad|iPod/.test(ua)) return null;
+    const w = screen.width, h = screen.height;
     const models = [
       { name: "iPhone 16 Pro Max", w: 440, h: 956 },
-      { name: "iPhone 16 Pro", w: 402, h: 874 },
-      { name: "iPhone 16 Plus", w: 430, h: 932 },
-      { name: "iPhone 16", w: 393, h: 852 },
+      { name: "iPhone 16 Pro",     w: 402, h: 874 },
+      { name: "iPhone 16 Plus",    w: 430, h: 932 },
+      { name: "iPhone 16",         w: 393, h: 852 },
       { name: "iPhone 15 Pro Max", w: 430, h: 932 },
-      { name: "iPhone 15 Pro", w: 393, h: 852 },
-      { name: "iPhone 15 Plus", w: 430, h: 932 },
-      { name: "iPhone 15", w: 393, h: 852 },
+      { name: "iPhone 15 Pro",     w: 393, h: 852 },
+      { name: "iPhone 15 Plus",    w: 430, h: 932 },
+      { name: "iPhone 15",         w: 393, h: 852 },
       { name: "iPhone 14 Pro Max", w: 430, h: 932 },
-      { name: "iPhone 14 Pro", w: 393, h: 852 },
-      { name: "iPhone 14 Plus", w: 428, h: 926 },
-      { name: "iPhone 14", w: 390, h: 844 },
+      { name: "iPhone 14 Pro",     w: 393, h: 852 },
+      { name: "iPhone 14 Plus",    w: 428, h: 926 },
+      { name: "iPhone 14",         w: 390, h: 844 },
       { name: "iPhone 13 Pro Max", w: 428, h: 926 },
-      { name: "iPhone 13 Pro", w: 390, h: 844 },
-      { name: "iPhone 13 mini", w: 375, h: 812 },
-      { name: "iPhone 13", w: 390, h: 844 },
+      { name: "iPhone 13 Pro",     w: 390, h: 844 },
+      { name: "iPhone 13 mini",    w: 375, h: 812 },
+      { name: "iPhone 13",         w: 390, h: 844 },
       { name: "iPhone 12 Pro Max", w: 428, h: 926 },
-      { name: "iPhone 12 Pro", w: 390, h: 844 },
-      { name: "iPhone 12 mini", w: 375, h: 812 },
-      { name: "iPhone 12", w: 390, h: 844 },
+      { name: "iPhone 12 Pro",     w: 390, h: 844 },
+      { name: "iPhone 12 mini",    w: 375, h: 812 },
+      { name: "iPhone 12",         w: 390, h: 844 },
       { name: "iPhone 11 Pro Max", w: 414, h: 896 },
-      { name: "iPhone 11 Pro", w: 375, h: 812 },
-      { name: "iPhone 11", w: 414, h: 896 },
-      { name: "iPhone XS Max", w: 414, h: 896 },
-      { name: "iPhone XR", w: 414, h: 896 },
-      { name: "iPhone X / XS", w: 375, h: 812 },
-      { name: "iPhone SE (3rd gen)", w: 375, h: 667 },
-      { name: "iPhone SE (2nd gen)", w: 375, h: 667 },
-      { name: "iPhone 8 Plus", w: 414, h: 736 },
-      { name: "iPhone 8", w: 375, h: 667 },
+      { name: "iPhone 11 Pro",     w: 375, h: 812 },
+      { name: "iPhone 11",         w: 414, h: 896 },
+      { name: "iPhone XS Max",     w: 414, h: 896 },
+      { name: "iPhone XR",         w: 414, h: 896 },
+      { name: "iPhone X / XS",     w: 375, h: 812 },
+      { name: "iPhone SE (3rd)",   w: 375, h: 667 },
+      { name: "iPhone SE (2nd)",   w: 375, h: 667 },
+      { name: "iPhone 8 Plus",     w: 414, h: 736 },
+      { name: "iPhone 8",          w: 375, h: 667 },
     ];
-
     const matched = models.find(m => m.w === w && m.h === h);
     return matched ? matched.name : `iPhone (${w}×${h})`;
   }
 
   function getiOSVersion() {
-    const ua = navigator.userAgent;
-    const m = ua.match(/OS (\d+)[_.](\d+)/);
-    if (m) return `iOS ${m[1]}.${m[2]}`;
-    return "iOS (version could not be detected)";
+    const m = navigator.userAgent.match(/OS (\d+)[_.](\d+)/);
+    return m ? `iOS ${m[1]}.${m[2]}` : "iOS (unknown version)";
   }
 
   function getBrowserInfo() {
     const ua = navigator.userAgent;
-    if (/CriOS\/([\d.]+)/.test(ua)) return `Chrome ${RegExp.$1} (iOS)`;
-    if (/FxiOS\/([\d.]+)/.test(ua)) return `Firefox ${RegExp.$1} (iOS)`;
-    if (/EdgiOS\/([\d.]+)/.test(ua)) return `Edge ${RegExp.$1} (iOS)`;
+    // iOS browser identifiers (must come first)
+    if (/CriOS\/([\d.]+)/.test(ua))           return `Chrome ${RegExp.$1} (iOS)`;
+    if (/FxiOS\/([\d.]+)/.test(ua))           return `Firefox ${RegExp.$1} (iOS)`;
+    if (/EdgiOS\/([\d.]+)/.test(ua))          return `Edge ${RegExp.$1} (iOS)`;
+    // Desktop / Android — order matters: Edge and Opera embed "Chrome/" too
+    if (/Edg\/([\d.]+)/.test(ua))             return `Edge ${RegExp.$1}`;
+    if (/OPR\/([\d.]+)/.test(ua))             return `Opera ${RegExp.$1}`;
+    if (/Chrome\/([\d.]+)/.test(ua))          return `Chrome ${RegExp.$1}`;
+    if (/Firefox\/([\d.]+)/.test(ua))         return `Firefox ${RegExp.$1}`;
     if (/Version\/([\d.]+).*Safari/.test(ua)) return `Safari ${RegExp.$1}`;
-    return "Safari (iOS)";
+    return "Unknown Browser";
   }
 
   function getNetwork() {
     const c = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
     if (!c) return "Unknown";
     const t = c.effectiveType || c.type || "";
-    if (t === "4g") return "4G / LTE";
-    if (t === "5g") return "5G";
-    if (t === "wifi" || c.type === "wifi") return "WiFi";
-    if (t === "3g") return "3G";
-    if (t === "2g") return "2G";
+    if (t === "4g")              return "4G / LTE";
+    if (t === "5g")              return "5G";
+    if (t === "wifi" || c.type === "wifi") return "Wi-Fi";
+    if (t === "3g")              return "3G";
+    if (t === "2g")              return "2G";
     return t || "Unknown";
   }
 
@@ -282,18 +143,18 @@
     const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
     const w = screen.width, h = screen.height, r = window.devicePixelRatio || 1;
     return {
-      model: isIOS ? (iOSModel() || "iOS device") : "Not iOS",
-      os: isIOS ? getiOSVersion() : navigator.platform,
-      screen: `${w} × ${h} px`,
-      ratio: `${r}x (${r >= 2 ? "Retina" : "Non-retina"})`,
-      browser: getBrowserInfo(),
-      lang: navigator.language || "Unknown",
-      memory: navigator.deviceMemory ? `~${navigator.deviceMemory} GB` : "Not available",
-      cores: navigator.hardwareConcurrency ? `${navigator.hardwareConcurrency} cores` : "Not available",
-      battery: "Fetching...",
-      network: getNetwork(),
-      touch: navigator.maxTouchPoints > 0 ? `Yes (${navigator.maxTouchPoints} points)` : "No",
-      standalone: window.navigator.standalone ? "Yes (homescreen)" : "Running in browser",
+      model:      isIOS ? (iOSModel() || "iOS Device") : "Non-iOS Device",
+      os:         isIOS ? getiOSVersion() : navigator.platform,
+      screen:     `${w} × ${h} px`,
+      ratio:      `${r}× (${r >= 2 ? "Retina" : "Non-retina"})`,
+      browser:    getBrowserInfo(),
+      lang:       navigator.language || "Unknown",
+      memory:     navigator.deviceMemory ? `~${navigator.deviceMemory} GB` : "Not available",
+      cores:      navigator.hardwareConcurrency ? `${navigator.hardwareConcurrency} cores` : "Not available",
+      battery:    "Fetching…",
+      network:    getNetwork(),
+      touch:      navigator.maxTouchPoints > 0 ? `Yes (${navigator.maxTouchPoints} pts)` : "No",
+      standalone: window.navigator.standalone ? "Yes — Homescreen" : "In browser",
     };
   }
 
@@ -302,59 +163,60 @@
     try {
       const b = await navigator.getBattery();
       const pct = Math.round(b.level * 100);
-      const status = b.charging ? "⚡ Charging" : "🔋";
-      return `${status} ${pct}%`;
+      return `${b.charging ? "⚡ " : ""}${pct}%`;
     } catch { return "Not available"; }
   }
 
   function render(data) {
     const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
+
     document.getElementById("device-name").textContent = data.model;
-    document.getElementById("device-os").textContent = data.os;
-    document.getElementById("platform-badge").textContent = isIOS ? "iOS" : "Non-iOS";
+    document.getElementById("device-os").textContent   = data.os;
+
+    const badge = document.getElementById("platform-badge");
+    badge.innerHTML = isIOS
+      ? `<i class="ti ti-brand-apple" aria-hidden="true"></i> iOS`
+      : `<i class="ti ti-device-laptop" aria-hidden="true"></i> Non-iOS`;
 
     const container = document.getElementById("results-container");
     const visible = fields.filter(f => state[f.id]);
-    if (visible.length === 0) { container.innerHTML = '<div style="font-size:13px;color:var(--color-text-tertiary);padding:8px 0;">No information selected</div>'; return; }
 
-    container.innerHTML = visible.map(f => `
-    <div class="result-row">
-      <div style="display:flex;align-items:center;gap:8px;">
-        <i class="ti ${f.icon}" style="font-size:16px;color:var(--color-text-secondary);" aria-hidden="true"></i>
-        <span class="info-label">${f.label}</span>
-      </div>
-      <span class="info-val" id="val-${f.id}">${data[f.id]}</span>
-    </div>
-  `).join('');
+    if (visible.length === 0) {
+      container.innerHTML = `<div class="empty-state">No information selected — toggle some fields below.</div>`;
+      return;
+    }
+
+    container.innerHTML = `<div class="results-grid">${
+      visible.map(f => `
+        <div class="result-tile">
+          <div class="result-tile-icon"><i class="ti ${f.icon}" aria-hidden="true"></i></div>
+          <div class="result-tile-label">${f.shortLabel}</div>
+          <div class="result-tile-val" id="val-${f.id}">${data[f.id]}</div>
+        </div>
+      `).join("")
+    }</div>`;
   }
 
   function buildToggles(data) {
     const c = document.getElementById("toggles-container");
-    if (!c) {
-      console.warn("toggles-container not found");
-      return;
-    }
+    if (!c) return;
 
     c.innerHTML = fields.map(f => `
-    <div class="toggle-row">
-      <div style="display:flex;align-items:center;gap:8px;">
-        <i class="ti ${f.icon}" style="font-size:15px;color:var(--color-text-secondary);" aria-hidden="true"></i>
-        <span class="info-label">${f.label}</span>
+      <div class="toggle-row">
+        <div class="toggle-row-left">
+          <span class="toggle-icon"><i class="ti ${f.icon}" aria-hidden="true"></i></span>
+          <span class="toggle-label">${f.label}</span>
+        </div>
+        <label class="toggle" aria-label="Toggle ${f.label}">
+          <input type="checkbox" id="toggle-${f.id}" ${state[f.id] ? "checked" : ""}>
+          <span class="slider-t"></span>
+        </label>
       </div>
-      <label class="toggle">
-        <input type="checkbox" id="toggle-${f.id}" ${state[f.id] ? 'checked' : ''}>
-        <span class="slider-t"></span>
-      </label>
-    </div>
-  `).join('');
+    `).join("");
 
     fields.forEach(f => {
-      const input = document.getElementById(`toggle-${f.id}`);
-      if (!input) return;
-      input.addEventListener('change', e => {
-        state[f.id] = e.target.checked;
-        render(data);
-      });
+      document.getElementById(`toggle-${f.id}`)
+        .addEventListener("change", e => { state[f.id] = e.target.checked; render(data); });
     });
   }
 
@@ -363,6 +225,12 @@
     buildToggles(data);
     render(data);
     data.battery = await fetchBattery();
-    render(data);
+    if (state.battery) {
+      const el = document.getElementById("val-battery");
+      if (el) el.textContent = data.battery;
+    }
   })();
 </script>
+
+</body>
+</html>
