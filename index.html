@@ -49,6 +49,30 @@
 </div>
 
 <script>
+  // ── WebGL GPU-generation signal ────────────────────────────────────────────
+  // MAX_TEXTURE_SIZE ≥ 16384 → A12 chip or newer (iPhone XR/XS 2018+)
+  // MAX_TEXTURE_SIZE = 8192  → A11 or older (iPhone X, 8, 7 …)
+  function glMaxTex() {
+    try {
+      const c = document.createElement("canvas");
+      const gl = c.getContext("webgl2") || c.getContext("webgl");
+      if (!gl) return 0;
+      const size = gl.getParameter(gl.MAX_TEXTURE_SIZE);
+      c.width = c.height = 1; // free memory
+      return size || 0;
+    } catch { return 0; }
+  }
+
+  // ── UA Client Hints (Chrome / Edge only) ───────────────────────────────────
+  async function getClientHints() {
+    try {
+      if (!navigator.userAgentData) return null;
+      return await navigator.userAgentData.getHighEntropyValues(
+        ["platform", "platformVersion", "model", "mobile", "architecture"]
+      );
+    } catch { return null; }
+  }
+
   // ── Fields config ──────────────────────────────────────────────────────────
   const fields = [
     { id: "model",      label: "Device model",           shortLabel: "Model",       icon: "ti-device-mobile",    default: true  },
@@ -69,8 +93,25 @@
   fields.forEach(f => state[f.id] = f.default);
 
   // ── Platform detection ─────────────────────────────────────────────────────
-  function detectPlatform() {
-    const ua  = navigator.userAgent;
+  function detectPlatform(hints) {
+    const ua = navigator.userAgent;
+
+    // Chrome/Edge: use the accurate Client Hints API
+    if (hints) {
+      const p = hints.platform;
+      if (p === "Android")
+        return hints.mobile
+          ? { family: "Android",   label: "Android",        icon: "ti-device-mobile"  }
+          : { family: "Android",   label: "Android Tablet", icon: "ti-device-tablet"  };
+      if (p === "Windows")  return { family: "Windows",   label: "Windows",        icon: "ti-device-laptop"  };
+      if (p === "macOS")    return { family: "macOS",     label: "macOS",          icon: "ti-brand-apple"    };
+      if (p === "Linux") {
+        if (/CrOS/.test(ua)) return { family: "Chrome OS", label: "Chrome OS",     icon: "ti-device-laptop"  };
+        return               { family: "Linux",     label: "Linux",          icon: "ti-brand-ubuntu"   };
+      }
+    }
+
+    // UA-string fallback (Safari, Firefox, older browsers)
     const isIPhone   = /iPhone/.test(ua);
     const isIPad     = /iPad/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
     const isIPod     = /iPod/.test(ua);
@@ -80,22 +121,34 @@
     const isChromeOS = /CrOS/.test(ua);
     const isLinux    = /Linux/.test(ua) && !isAndroid && !isChromeOS;
 
-    if (isIPhone)  return { family: "iOS",       label: "iPhone",        icon: "ti-device-mobile"  };
-    if (isIPad)    return { family: "iPadOS",    label: "iPad",          icon: "ti-device-ipad"    };
-    if (isIPod)    return { family: "iOS",       label: "iPod touch",    icon: "ti-device-mobile"  };
+    if (isIPhone)   return { family: "iOS",       label: "iPhone",         icon: "ti-device-mobile"  };
+    if (isIPad)     return { family: "iPadOS",    label: "iPad",           icon: "ti-device-ipad"    };
+    if (isIPod)     return { family: "iOS",       label: "iPod touch",     icon: "ti-device-mobile"  };
     if (isAndroid && /Mobile/.test(ua))
-                   return { family: "Android",   label: "Android",       icon: "ti-device-mobile"  };
-    if (isAndroid) return { family: "Android",   label: "Android Tablet",icon: "ti-device-tablet"  };
-    if (isWindows) return { family: "Windows",   label: "Windows",       icon: "ti-device-laptop"  };
-    if (isMac)     return { family: "macOS",     label: "macOS",         icon: "ti-brand-apple"    };
-    if (isChromeOS)return { family: "Chrome OS", label: "Chrome OS",     icon: "ti-device-laptop"  };
-    if (isLinux)   return { family: "Linux",     label: "Linux",         icon: "ti-brand-ubuntu"   };
-    return               { family: "Unknown",    label: "Unknown",       icon: "ti-device-desktop" };
+                    return { family: "Android",   label: "Android",        icon: "ti-device-mobile"  };
+    if (isAndroid)  return { family: "Android",   label: "Android Tablet", icon: "ti-device-tablet"  };
+    if (isWindows)  return { family: "Windows",   label: "Windows",        icon: "ti-device-laptop"  };
+    if (isMac)      return { family: "macOS",     label: "macOS",          icon: "ti-brand-apple"    };
+    if (isChromeOS) return { family: "Chrome OS", label: "Chrome OS",      icon: "ti-device-laptop"  };
+    if (isLinux)    return { family: "Linux",     label: "Linux",          icon: "ti-brand-ubuntu"   };
+    return                { family: "Unknown",    label: "Unknown",        icon: "ti-device-desktop" };
   }
 
   // ── OS version ─────────────────────────────────────────────────────────────
-  function getOSVersion(platform) {
+  function getOSVersion(platform, hints) {
     const ua = navigator.userAgent;
+
+    // Client Hints: accurate Windows 10 vs 11, exact macOS/Android version
+    if (hints?.platformVersion) {
+      const major = parseInt(hints.platformVersion.split(".")[0], 10);
+      if (platform.family === "Windows") {
+        if (major >= 13) return "Windows 11";
+        if (major >= 1)  return "Windows 10";
+      }
+      if (platform.family === "macOS")  return `macOS ${hints.platformVersion}`;
+      if (platform.family === "Android") return `Android ${hints.platformVersion}`;
+    }
+
     switch (platform.family) {
       case "iOS":
       case "iPadOS": {
@@ -124,73 +177,89 @@
     }
   }
 
+  // ── iOS / iPadOS model ─────────────────────────────────────────────────────
+  // Each entry: { name, w (portrait CSS px), h, dpr, minTex? }
+  // minTex: minimum MAX_TEXTURE_SIZE → A12+ = 16384, A11- = 8192
+  // When multiple phones share all signals, name lists them with " / ".
+  // That is the maximum precision browsers allow — Apple blocks deeper access.
+  const IPHONE_MODELS = [
+    // ── Unique screen sizes ──────────────────────────────────────────────────
+    { name: "iPhone 16 Pro Max",                              w: 440, h: 956,  dpr: 3, minTex: 16384 },
+    { name: "iPhone 16 Pro",                                  w: 402, h: 874,  dpr: 3, minTex: 16384 },
+    // ── Groups that share all detectable signals ─────────────────────────────
+    { name: "iPhone 16 Plus / 15 Pro Max / 15 Plus / 14 Pro Max", w: 430, h: 932, dpr: 3, minTex: 16384 },
+    { name: "iPhone 16 / 15 Pro / 15 / 14 Pro",              w: 393, h: 852,  dpr: 3, minTex: 16384 },
+    { name: "iPhone 14 Plus / 13 Pro Max / 12 Pro Max",       w: 428, h: 926,  dpr: 3, minTex: 16384 },
+    { name: "iPhone 14 / 13 Pro / 13 / 12 Pro / 12",         w: 390, h: 844,  dpr: 3, minTex: 16384 },
+    { name: "iPhone 11 Pro Max / XS Max",                     w: 414, h: 896,  dpr: 3, minTex: 16384 },
+    { name: "iPhone 11 / XR",                                 w: 414, h: 896,  dpr: 2, minTex: 16384 },
+    // minTex splits the 375×812 group: A12+ vs A11
+    { name: "iPhone 13 mini / 12 mini / 11 Pro",              w: 375, h: 812,  dpr: 3, minTex: 16384 },
+    { name: "iPhone X / XS",                                  w: 375, h: 812,  dpr: 3, minTex: 8192  },
+    { name: "iPhone 8 Plus / 7 Plus / 6s Plus",               w: 414, h: 736,  dpr: 3, minTex: 8192  },
+    { name: "iPhone SE (3rd/2nd gen) / 8 / 7 / 6s",          w: 375, h: 667,  dpr: 2, minTex: 8192  },
+    { name: "iPhone SE (1st gen) / 5s",                       w: 320, h: 568,  dpr: 2, minTex: 8192  },
+  ];
+
+  const IPAD_MODELS = [
+    { name: 'iPad Pro 13" (M4)',        w: 1032, h: 1376, dpr: 2 },
+    { name: 'iPad Pro 11" (M4)',        w: 834,  h: 1210, dpr: 2 },
+    { name: 'iPad Pro 12.9" (M2/M1)',   w: 1024, h: 1366, dpr: 2 },
+    { name: 'iPad Pro 11" (M2/M1/2nd)', w: 834,  h: 1194, dpr: 2 },
+    { name: 'iPad Air 13" (M2)',        w: 1024, h: 1366, dpr: 2 },
+    { name: 'iPad Air 11" (M2) / Air (5th) / iPad (10th)',    w: 820, h: 1180, dpr: 2 },
+    { name: 'iPad mini (6th gen)',      w: 744,  h: 1133, dpr: 2 },
+    { name: 'iPad (9th gen) / Air (4th) / Pro 11" (1st)',     w: 810, h: 1080, dpr: 2 },
+    { name: 'iPad (8th gen) / Air (3rd) / Pro 10.5"',         w: 768, h: 1024, dpr: 2 },
+    { name: 'iPad mini (5th gen)',      w: 768,  h: 1024, dpr: 2 },
+  ];
+
+  function detectiOSModel(isIPad, texSize) {
+    // Always compare in portrait orientation (smaller dim = width)
+    const pw = Math.min(screen.width,  screen.height);
+    const ph = Math.max(screen.width,  screen.height);
+    const dpr = window.devicePixelRatio || 1;
+
+    const list = isIPad ? IPAD_MODELS : IPHONE_MODELS;
+
+    // Try exact match including GPU-generation signal
+    if (texSize > 0) {
+      const hit = list.find(m =>
+        m.w === pw && m.h === ph && m.dpr === dpr &&
+        m.minTex !== undefined && texSize >= m.minTex
+      );
+      if (hit) return hit.name;
+    }
+
+    // Fallback: CSS pixels + DPR only
+    const hit = list.find(m => m.w === pw && m.h === ph && m.dpr === dpr);
+    if (hit) return hit.name;
+
+    // Unknown — show raw signals for manual lookup
+    return `${isIPad ? "iPad" : "iPhone"} (${pw}×${ph} @${dpr}×)`;
+  }
+
   // ── Device model ───────────────────────────────────────────────────────────
-  function getDeviceModel(platform) {
+  function getDeviceModel(platform, hints, texSize) {
     const ua = navigator.userAgent;
-    const w  = screen.width, h = screen.height;
 
     if (platform.family === "iOS" || platform.family === "iPadOS") {
-      const isIPad = platform.family === "iPadOS";
-
-      const iPhoneModels = [
-        { name: "iPhone 16 Pro Max", w: 440, h: 956 },
-        { name: "iPhone 16 Pro",     w: 402, h: 874 },
-        { name: "iPhone 16 Plus",    w: 430, h: 932 },
-        { name: "iPhone 16",         w: 393, h: 852 },
-        { name: "iPhone 15 Pro Max", w: 430, h: 932 },
-        { name: "iPhone 15 Pro",     w: 393, h: 852 },
-        { name: "iPhone 15 Plus",    w: 430, h: 932 },
-        { name: "iPhone 15",         w: 393, h: 852 },
-        { name: "iPhone 14 Pro Max", w: 430, h: 932 },
-        { name: "iPhone 14 Pro",     w: 393, h: 852 },
-        { name: "iPhone 14 Plus",    w: 428, h: 926 },
-        { name: "iPhone 14",         w: 390, h: 844 },
-        { name: "iPhone 13 Pro Max", w: 428, h: 926 },
-        { name: "iPhone 13 Pro",     w: 390, h: 844 },
-        { name: "iPhone 13 mini",    w: 375, h: 812 },
-        { name: "iPhone 13",         w: 390, h: 844 },
-        { name: "iPhone 12 Pro Max", w: 428, h: 926 },
-        { name: "iPhone 12 Pro",     w: 390, h: 844 },
-        { name: "iPhone 12 mini",    w: 375, h: 812 },
-        { name: "iPhone 12",         w: 390, h: 844 },
-        { name: "iPhone 11 Pro Max", w: 414, h: 896 },
-        { name: "iPhone 11 Pro",     w: 375, h: 812 },
-        { name: "iPhone 11",         w: 414, h: 896 },
-        { name: "iPhone XS Max",     w: 414, h: 896 },
-        { name: "iPhone XR",         w: 414, h: 896 },
-        { name: "iPhone X / XS",     w: 375, h: 812 },
-        { name: "iPhone SE (3rd)",   w: 375, h: 667 },
-        { name: "iPhone SE (2nd)",   w: 375, h: 667 },
-        { name: "iPhone 8 Plus",     w: 414, h: 736 },
-        { name: "iPhone 8",          w: 375, h: 667 },
-      ];
-
-      const iPadModels = [
-        { name: "iPad Pro 13\" (M4)",    w: 1032, h: 1376 },
-        { name: "iPad Pro 11\" (M4)",    w: 834,  h: 1210 },
-        { name: "iPad Pro 12.9\" (M2)",  w: 1024, h: 1366 },
-        { name: "iPad Pro 11\" (M2)",    w: 834,  h: 1194 },
-        { name: "iPad Air 13\" (M2)",    w: 1024, h: 1366 },
-        { name: "iPad Air 11\" (M2)",    w: 820,  h: 1180 },
-        { name: "iPad Air (5th gen)",    w: 820,  h: 1180 },
-        { name: "iPad mini (6th gen)",   w: 744,  h: 1133 },
-        { name: "iPad (10th gen)",       w: 820,  h: 1180 },
-        { name: "iPad (9th gen)",        w: 768,  h: 1024 },
-      ];
-
-      const list = isIPad ? iPadModels : iPhoneModels;
-      const hit  = list.find(m => (m.w === w && m.h === h) || (m.w === h && m.h === w));
-      return hit ? hit.name : `${isIPad ? "iPad" : "iPhone"} (${w}×${h})`;
+      return detectiOSModel(platform.family === "iPadOS", texSize);
     }
 
+    // Android: Client Hints gives the exact model name in Chrome
     if (platform.family === "Android") {
-      // UA format: (Linux; Android 14; Pixel 8 Pro Build/...)
-      const m = ua.match(/Android[\d. ]+;\s*([^;)]+?)(?:\s+Build\/|\))/);
-      return m ? m[1].trim() : "Android Device";
+      if (hints?.model && hints.model !== "") return hints.model;
+      // UA fallback: (Linux; Android 14; Pixel 8 Build/...)
+      const m1 = ua.match(/Android[\d. ]+;\s*([^;)]+?)(?:\s+Build\/|\))/);
+      if (m1) return m1[1].trim();
+      const m2 = ua.match(/;\s*([^;)]+?)\s+Build\//);
+      if (m2) return m2[1].trim();
+      return "Android Device";
     }
 
-    const fallbacks = { macOS: "Mac", Windows: "Windows PC", "Chrome OS": "Chromebook", Linux: "Linux PC" };
-    return fallbacks[platform.family] || "Unknown Device";
+    return { macOS: "Mac", Windows: "Windows PC", "Chrome OS": "Chromebook", Linux: "Linux PC" }
+      [platform.family] || "Unknown Device";
   }
 
   // ── Browser detection ──────────────────────────────────────────────────────
@@ -212,10 +281,10 @@
     const c = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
     if (!c) return "Unknown";
     const t = c.effectiveType || c.type || "";
-    if (t === "4g" || t === "5g")              return t.toUpperCase();
-    if (t === "wifi" || c.type === "wifi")     return "Wi-Fi";
-    if (t === "3g")                            return "3G";
-    if (t === "2g")                            return "2G";
+    if (t === "4g" || t === "5g")          return t.toUpperCase();
+    if (t === "wifi" || c.type === "wifi") return "Wi-Fi";
+    if (t === "3g")                        return "3G";
+    if (t === "2g")                        return "2G";
     return t || "Unknown";
   }
 
@@ -229,12 +298,13 @@
   }
 
   // ── Collect all data ───────────────────────────────────────────────────────
-  function getAllData(platform) {
+  function getAllData(platform, hints, texSize) {
     const w = screen.width, h = screen.height, r = window.devicePixelRatio || 1;
+    const pw = Math.round(w * r), ph = Math.round(h * r);
     return {
-      model:      getDeviceModel(platform),
-      os:         getOSVersion(platform),
-      screen:     `${w} × ${h} px`,
+      model:      getDeviceModel(platform, hints, texSize),
+      os:         getOSVersion(platform, hints),
+      screen:     `${w} × ${h} px  (${pw} × ${ph} physical)`,
       ratio:      `${r}× (${r >= 2 ? "HiDPI / Retina" : "Standard"})`,
       browser:    getBrowserInfo(),
       lang:       navigator.language || "Unknown",
@@ -243,7 +313,7 @@
       battery:    "Fetching…",
       network:    getNetwork(),
       touch:      navigator.maxTouchPoints > 0 ? `Yes (${navigator.maxTouchPoints} pts)` : "No",
-      standalone: window.navigator.standalone ? "Yes — Homescreen" : "In browser",
+      standalone: window.navigator.standalone === true ? "Yes — Homescreen" : "In browser",
     };
   }
 
@@ -252,7 +322,8 @@
     document.getElementById("device-name").textContent = data.model;
     document.getElementById("device-os").textContent   = data.os;
 
-    document.querySelector(".hero-icon-wrap i").className = `ti ${platform.icon}`;
+    const heroI = document.querySelector(".hero-icon-wrap i");
+    if (heroI) heroI.className = `ti ${platform.icon}`;
 
     document.getElementById("platform-badge").innerHTML =
       `<i class="ti ${platform.icon}" aria-hidden="true"></i> ${platform.label}`;
@@ -280,7 +351,6 @@
   function buildToggles(data, platform) {
     const c = document.getElementById("toggles-container");
     if (!c) return;
-
     c.innerHTML = fields.map(f => `
       <div class="toggle-row">
         <div class="toggle-row-left">
@@ -302,14 +372,19 @@
 
   // ── Boot ───────────────────────────────────────────────────────────────────
   (async () => {
-    const platform = detectPlatform();
-    const data     = getAllData(platform);
-    buildToggles(data, platform);
-    render(data, platform);
-    data.battery = await fetchBattery();
-    if (state.battery) {
-      const el = document.getElementById("val-battery");
-      if (el) el.textContent = data.battery;
+    try {
+      const [hints, texSize] = await Promise.all([getClientHints(), Promise.resolve(glMaxTex())]);
+      const platform = detectPlatform(hints);
+      const data     = getAllData(platform, hints, texSize);
+      buildToggles(data, platform);
+      render(data, platform);
+      data.battery = await fetchBattery();
+      if (state.battery) {
+        const el = document.getElementById("val-battery");
+        if (el) el.textContent = data.battery;
+      }
+    } catch (err) {
+      console.error("Device Inspector error:", err);
     }
   })();
 </script>
