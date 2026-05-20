@@ -1,0 +1,990 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#0a0a1f">
+  <title>iOS Game Diagnostics — GPU & Memory Inspector</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.31.0/dist/tabler-icons.min.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- Animated aurora background -->
+<div class="aurora" aria-hidden="true">
+  <span class="blob blob-1"></span>
+  <span class="blob blob-2"></span>
+  <span class="blob blob-3"></span>
+</div>
+<div class="grid-overlay" aria-hidden="true"></div>
+
+<h1 class="sr-only">iOS Game Diagnostics — your device GPU and memory info is displayed here</h1>
+
+<main class="page-wrapper">
+
+  <p class="page-label">
+    <span class="dot-pulse"></span>
+    iOS Game Diagnostics
+  </p>
+
+  <!-- ─── HERO ───────────────────────────────────────────── -->
+  <section class="hero-card">
+    <div class="hero-icon-wrap">
+      <i class="ti ti-device-mobile" aria-hidden="true"></i>
+    </div>
+    <div class="hero-name" id="device-name">Detecting…</div>
+    <div class="hero-os" id="device-os">Loading OS version…</div>
+    <span class="hero-badge" id="platform-badge">
+      <i class="ti ti-circle-dot" aria-hidden="true"></i>
+      Detecting
+    </span>
+  </section>
+
+  <!-- ─── CRASH RISK GAUGE ──────────────────────────────── -->
+  <section class="glass-card risk-card">
+    <div class="card-heading">
+      <i class="ti ti-shield-bolt"></i>
+      Crash Risk Assessment
+    </div>
+
+    <div class="risk-meter">
+      <svg class="risk-ring" viewBox="0 0 200 200" aria-hidden="true">
+        <defs>
+          <linearGradient id="risk-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%"  stop-color="#34d399"/>
+            <stop offset="50%" stop-color="#fbbf24"/>
+            <stop offset="100%" stop-color="#f43f5e"/>
+          </linearGradient>
+        </defs>
+        <circle cx="100" cy="100" r="84" class="ring-bg"/>
+        <circle cx="100" cy="100" r="84" class="ring-fg" id="risk-ring-fg"
+                stroke-dasharray="527.79" stroke-dashoffset="527.79"/>
+      </svg>
+      <div class="risk-center">
+        <div class="risk-score" id="risk-score">—</div>
+        <div class="risk-label" id="risk-level">Calculating…</div>
+      </div>
+    </div>
+
+    <div class="risk-reasons" id="risk-reasons"></div>
+  </section>
+
+  <!-- ─── GPU PROFILE ────────────────────────────────────── -->
+  <section class="glass-card">
+    <div class="card-heading">
+      <i class="ti ti-cpu-2"></i>
+      GPU Profile
+    </div>
+    <div class="kv-grid" id="gpu-profile"></div>
+  </section>
+
+  <!-- ─── LIVE GPU MEMORY BUDGET TEST ───────────────────── -->
+  <section class="glass-card test-card">
+    <div class="card-heading">
+      <i class="ti ti-activity-heartbeat"></i>
+      GPU Memory Budget · Live Test
+    </div>
+
+    <p class="test-blurb">
+      Allocates 1024×1024 RGBA textures (4&nbsp;MB each) until WebGL refuses more
+      or the browser drops the context. Reveals the approximate GPU memory budget
+      Safari will grant your slot game before crashing.
+    </p>
+
+    <div class="test-readouts">
+      <div class="test-readout">
+        <div class="test-readout-label">Allocated</div>
+        <div class="test-readout-val" id="test-allocated">—</div>
+      </div>
+      <div class="test-readout">
+        <div class="test-readout-label">Textures</div>
+        <div class="test-readout-val" id="test-count">—</div>
+      </div>
+      <div class="test-readout">
+        <div class="test-readout-label">Result</div>
+        <div class="test-readout-val" id="test-status">Idle</div>
+      </div>
+    </div>
+
+    <div class="test-bar-wrap" aria-hidden="true">
+      <div class="test-bar" id="test-bar"></div>
+      <div class="test-bar-ticks">
+        <span>0</span><span>250MB</span><span>500MB</span><span>1GB</span><span>2GB</span>
+      </div>
+    </div>
+
+    <div class="test-actions">
+      <button class="btn btn-primary" id="test-run">
+        <i class="ti ti-player-play"></i>
+        Run GPU Memory Test
+      </button>
+      <button class="btn btn-ghost" id="test-stop" disabled>
+        <i class="ti ti-player-stop"></i>
+        Stop
+      </button>
+    </div>
+
+    <p class="test-warning">
+      <i class="ti ti-alert-triangle"></i>
+      On low-RAM iPhones, this may reload the tab. That itself confirms the
+      device is hitting its GPU/RAM ceiling.
+    </p>
+  </section>
+
+  <!-- ─── TEXTURE LIMITS ────────────────────────────────── -->
+  <section class="glass-card">
+    <div class="card-heading">
+      <i class="ti ti-photo-square-rounded"></i>
+      WebGL Texture Limits
+    </div>
+    <div class="kv-grid" id="webgl-limits"></div>
+  </section>
+
+  <!-- ─── COMPRESSION SUPPORT ───────────────────────────── -->
+  <section class="glass-card">
+    <div class="card-heading">
+      <i class="ti ti-package"></i>
+      Texture Compression Support
+    </div>
+    <p class="card-blurb">
+      Compressed textures stay compressed on the GPU and use
+      <strong>4–8× less memory</strong>. Critical for slot game asset budgets on iOS.
+    </p>
+    <div class="codec-grid" id="codec-grid"></div>
+  </section>
+
+  <!-- ─── ASSET BUDGET CALCULATOR ───────────────────────── -->
+  <section class="glass-card calc-card">
+    <div class="card-heading">
+      <i class="ti ti-calculator"></i>
+      Slot Game Asset Calculator
+    </div>
+    <p class="card-blurb">
+      Estimate the GPU memory your reels, symbols and animations will eat.
+    </p>
+
+    <div class="calc-grid">
+      <label class="calc-field">
+        <span>Texture count</span>
+        <input type="number" id="calc-count" value="40" min="1" max="2000">
+      </label>
+      <label class="calc-field">
+        <span>Avg texture size</span>
+        <select id="calc-size">
+          <option value="256">256 × 256</option>
+          <option value="512">512 × 512</option>
+          <option value="1024" selected>1024 × 1024</option>
+          <option value="2048">2048 × 2048</option>
+          <option value="4096">4096 × 4096</option>
+        </select>
+      </label>
+      <label class="calc-field">
+        <span>Format</span>
+        <select id="calc-format">
+          <option value="4" selected>RGBA (uncompressed)</option>
+          <option value="3">RGB (uncompressed)</option>
+          <option value="1">ASTC 4×4 / PVRTC 4bpp</option>
+          <option value="0.5">ASTC 8×8</option>
+          <option value="0.25">PVRTC 2bpp</option>
+        </select>
+      </label>
+      <label class="calc-field">
+        <span>Mipmaps</span>
+        <select id="calc-mip">
+          <option value="1" selected>Off</option>
+          <option value="1.33">On (+33%)</option>
+        </select>
+      </label>
+    </div>
+
+    <div class="calc-result" id="calc-result">
+      <div class="calc-result-label">Estimated GPU memory</div>
+      <div class="calc-result-val" id="calc-total">0 MB</div>
+      <div class="calc-result-bar"><div id="calc-bar"></div></div>
+      <div class="calc-result-note" id="calc-note">—</div>
+    </div>
+  </section>
+
+  <!-- ─── RECOMMENDATIONS ───────────────────────────────── -->
+  <section class="glass-card reco-card">
+    <div class="card-heading">
+      <i class="ti ti-bulb"></i>
+      Recommendations for This Device
+    </div>
+    <ul class="reco-list" id="reco-list"></ul>
+  </section>
+
+  <!-- ─── DEVICE INFO ───────────────────────────────────── -->
+  <section class="glass-card">
+    <div class="card-heading">
+      <i class="ti ti-info-circle"></i>
+      Device Information
+    </div>
+    <div class="kv-grid" id="device-info"></div>
+  </section>
+
+  <!-- ─── WEBGL EXTENSIONS ──────────────────────────────── -->
+  <section class="glass-card ext-card">
+    <div class="card-heading">
+      <i class="ti ti-puzzle"></i>
+      WebGL Extensions
+      <span class="ext-count" id="ext-count"></span>
+    </div>
+    <details>
+      <summary>Show all supported extensions</summary>
+      <div class="ext-chips" id="ext-chips"></div>
+    </details>
+  </section>
+
+  <!-- ─── RAW DUMP ──────────────────────────────────────── -->
+  <section class="glass-card">
+    <div class="card-heading">
+      <i class="ti ti-terminal-2"></i>
+      Raw Diagnostic Dump
+    </div>
+    <p class="card-blurb">Copy this when reporting an iPhone crash.</p>
+    <pre class="dump" id="dump">Generating…</pre>
+    <button class="btn btn-ghost" id="copy-dump">
+      <i class="ti ti-copy"></i>
+      Copy to clipboard
+    </button>
+  </section>
+
+  <footer class="page-footer">
+    Built for diagnosing slot-game crashes on iOS · all detection runs locally
+  </footer>
+
+</main>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════════════════
+   iOS GAME DIAGNOSTICS · GPU & Memory Inspector
+   ─────────────────────────────────────────────────────────────────────────
+   Diagnoses why a WebGL slot game crashes on iPhones:
+     · GPU vendor / renderer / generation
+     · WebGL texture & buffer limits
+     · Texture compression support (ASTC / PVRTC / ETC2 / S3TC / BPTC)
+     · Live GPU memory budget test (allocates until Safari refuses)
+     · Slot-asset memory calculator
+     · Crash risk score with reason breakdown
+   ═══════════════════════════════════════════════════════════════════════ */
+
+(() => {
+  "use strict";
+
+  /* ───────── helpers ───────── */
+  const $  = id => document.getElementById(id);
+  const fmt = n => n.toLocaleString();
+  const fmtMB = bytes => (bytes / 1048576).toFixed(1) + " MB";
+
+  /* ═══════════ PLATFORM ═════════════════════════════════════════════════ */
+
+  async function getClientHints() {
+    try {
+      if (!navigator.userAgentData) return null;
+      return await navigator.userAgentData.getHighEntropyValues(
+        ["platform", "platformVersion", "model", "mobile", "architecture"]);
+    } catch { return null; }
+  }
+
+  function detectPlatform(hints) {
+    const ua = navigator.userAgent;
+    if (hints) {
+      const p = hints.platform;
+      if (p === "Android")
+        return hints.mobile
+          ? { family: "Android", label: "Android", icon: "ti-device-mobile" }
+          : { family: "Android", label: "Android Tablet", icon: "ti-device-tablet" };
+      if (p === "Windows") return { family: "Windows", label: "Windows", icon: "ti-device-laptop" };
+      if (p === "macOS")   return { family: "macOS",   label: "macOS",   icon: "ti-brand-apple" };
+      if (p === "Linux") {
+        if (/CrOS/.test(ua)) return { family: "Chrome OS", label: "Chrome OS", icon: "ti-device-laptop" };
+        return { family: "Linux", label: "Linux", icon: "ti-brand-ubuntu" };
+      }
+    }
+    const isIPhone = /iPhone/.test(ua);
+    const isIPad   = /iPad/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+    const isIPod   = /iPod/.test(ua);
+    if (isIPhone) return { family: "iOS",    label: "iPhone",     icon: "ti-device-mobile" };
+    if (isIPad)   return { family: "iPadOS", label: "iPad",       icon: "ti-device-ipad" };
+    if (isIPod)   return { family: "iOS",    label: "iPod touch", icon: "ti-device-mobile" };
+    if (/Android/.test(ua) && /Mobile/.test(ua))
+                  return { family: "Android", label: "Android",        icon: "ti-device-mobile" };
+    if (/Android/.test(ua)) return { family: "Android", label: "Android Tablet", icon: "ti-device-tablet" };
+    if (/Windows NT/.test(ua)) return { family: "Windows", label: "Windows", icon: "ti-device-laptop" };
+    if (/Macintosh/.test(ua))  return { family: "macOS",   label: "macOS",   icon: "ti-brand-apple" };
+    if (/CrOS/.test(ua))       return { family: "Chrome OS", label: "Chrome OS", icon: "ti-device-laptop" };
+    if (/Linux/.test(ua))      return { family: "Linux", label: "Linux", icon: "ti-brand-ubuntu" };
+    return { family: "Unknown", label: "Unknown", icon: "ti-device-desktop" };
+  }
+
+  function getOSVersion(platform, hints) {
+    const ua = navigator.userAgent;
+    const macOSName = m => ({15:"Sequoia",14:"Sonoma",13:"Ventura",12:"Monterey",11:"Big Sur"}[m] || "");
+    if (hints?.platformVersion) {
+      const ver = hints.platformVersion;
+      const major = parseInt(ver.split(".")[0], 10);
+      if (platform.family === "Windows") return major >= 13 ? "Windows 11" : "Windows 10";
+      if (platform.family === "macOS")   {
+        const mkt = macOSName(major); return mkt ? `macOS ${mkt} ${ver}` : `macOS ${ver}`;
+      }
+      if (platform.family === "Android") return `Android ${ver}`;
+    }
+    if (platform.family === "iOS" || platform.family === "iPadOS") {
+      const m = ua.match(/OS (\d+)[_.](\d+)(?:[_.](\d+))?/);
+      return m ? `${platform.family} ${m[1]}.${m[2]}${m[3] ? "." + m[3] : ""}` : platform.family;
+    }
+    if (platform.family === "Android") {
+      const m = ua.match(/Android ([\d.]+)/);
+      return m ? `Android ${m[1]}` : "Android";
+    }
+    if (platform.family === "macOS") {
+      const m = ua.match(/Mac OS X ([\d_]+)/);
+      if (!m) return "macOS";
+      const ver = m[1].replace(/_/g, ".");
+      const mkt = macOSName(parseInt(ver.split(".")[0], 10));
+      return mkt ? `macOS ${mkt} ${ver}` : `macOS ${ver}`;
+    }
+    return platform.family;
+  }
+
+  /* ═══════════ iOS MODEL DETECTION ══════════════════════════════════════
+     Each entry shares all browser-detectable signals — Apple blocks deeper
+     access, so several models legitimately collapse into one row.
+     ═════════════════════════════════════════════════════════════════════ */
+  const IPHONE_MODELS = [
+    { name: "iPhone 16 Pro Max",                                  w: 440, h: 956, dpr: 3, ram: 8, gpuGen: "A18 Pro", year: 2024, minTex: 16384 },
+    { name: "iPhone 16 Pro",                                      w: 402, h: 874, dpr: 3, ram: 8, gpuGen: "A18 Pro", year: 2024, minTex: 16384 },
+    { name: "iPhone 16 Plus / 15 Pro Max / 15 Plus / 14 Pro Max", w: 430, h: 932, dpr: 3, ram: 6, gpuGen: "A16-A18", year: 2022, minTex: 16384 },
+    { name: "iPhone 16 / 15 Pro / 15 / 14 Pro",                   w: 393, h: 852, dpr: 3, ram: 6, gpuGen: "A16-A18", year: 2022, minTex: 16384 },
+    { name: "iPhone 14 Plus / 13 Pro Max / 12 Pro Max",           w: 428, h: 926, dpr: 3, ram: 6, gpuGen: "A14-A15", year: 2020, minTex: 16384 },
+    { name: "iPhone 14 / 13 Pro / 13 / 12 Pro / 12",              w: 390, h: 844, dpr: 3, ram: 4, gpuGen: "A14-A15", year: 2020, minTex: 16384 },
+    { name: "iPhone 11 Pro Max / XS Max",                         w: 414, h: 896, dpr: 3, ram: 4, gpuGen: "A12-A13", year: 2018, minTex: 16384 },
+    { name: "iPhone 11 / XR",                                     w: 414, h: 896, dpr: 2, ram: 3, gpuGen: "A12-A13", year: 2018, minTex: 16384 },
+    { name: "iPhone 13 mini / 12 mini / 11 Pro",                  w: 375, h: 812, dpr: 3, ram: 4, gpuGen: "A13-A15", year: 2019, minTex: 16384 },
+    { name: "iPhone X / XS",                                      w: 375, h: 812, dpr: 3, ram: 3, gpuGen: "A11-A12", year: 2017, minTex: 8192 },
+    { name: "iPhone 8 Plus / 7 Plus / 6s Plus",                   w: 414, h: 736, dpr: 3, ram: 2, gpuGen: "A9-A11",  year: 2015, minTex: 8192 },
+    { name: "iPhone SE (3rd/2nd) / 8 / 7 / 6s",                   w: 375, h: 667, dpr: 2, ram: 2, gpuGen: "A9-A15",  year: 2015, minTex: 8192 },
+    { name: "iPhone SE (1st gen) / 5s",                           w: 320, h: 568, dpr: 2, ram: 1, gpuGen: "A7-A9",   year: 2013, minTex: 4096 },
+  ];
+
+  const IPAD_MODELS = [
+    { name: 'iPad Pro 13" (M4)',                          w: 1032, h: 1376, dpr: 2, ram: 8, gpuGen: "M4",        year: 2024, minTex: 16384 },
+    { name: 'iPad Pro 11" (M4)',                          w: 834,  h: 1210, dpr: 2, ram: 8, gpuGen: "M4",        year: 2024, minTex: 16384 },
+    { name: 'iPad Pro 12.9" (M2/M1)',                     w: 1024, h: 1366, dpr: 2, ram: 8, gpuGen: "M1-M2",     year: 2021, minTex: 16384 },
+    { name: 'iPad Pro 11" (M2/M1/2nd)',                   w: 834,  h: 1194, dpr: 2, ram: 8, gpuGen: "M1-M2",     year: 2020, minTex: 16384 },
+    { name: 'iPad Air 13" (M2)',                          w: 1024, h: 1366, dpr: 2, ram: 8, gpuGen: "M2",        year: 2024, minTex: 16384 },
+    { name: 'iPad Air 11" (M2) / Air 5 / iPad 10',        w: 820,  h: 1180, dpr: 2, ram: 6, gpuGen: "A14-M2",    year: 2022, minTex: 16384 },
+    { name: 'iPad mini (6th gen)',                        w: 744,  h: 1133, dpr: 2, ram: 4, gpuGen: "A15",       year: 2021, minTex: 16384 },
+    { name: 'iPad 9 / Air 4 / Pro 11" 1st',               w: 810,  h: 1080, dpr: 2, ram: 4, gpuGen: "A12-A14",   year: 2018, minTex: 16384 },
+    { name: 'iPad 8 / Air 3 / Pro 10.5"',                 w: 768,  h: 1024, dpr: 2, ram: 3, gpuGen: "A10-A12",   year: 2017, minTex: 16384 },
+    { name: 'iPad mini (5th gen)',                        w: 768,  h: 1024, dpr: 2, ram: 3, gpuGen: "A12",       year: 2019, minTex: 16384 },
+  ];
+
+  function detectiOSModel(isIPad, texSize) {
+    const pw  = Math.min(screen.width, screen.height);
+    const ph  = Math.max(screen.width, screen.height);
+    const dpr = window.devicePixelRatio || 1;
+    const list = isIPad ? IPAD_MODELS : IPHONE_MODELS;
+    if (texSize > 0) {
+      const hit = list.find(m => m.w === pw && m.h === ph && m.dpr === dpr && texSize >= m.minTex);
+      if (hit) return hit;
+    }
+    const hit = list.find(m => m.w === pw && m.h === ph && m.dpr === dpr);
+    if (hit) return hit;
+    return {
+      name: `${isIPad ? "iPad" : "iPhone"} (${pw}×${ph} @${dpr}×)`,
+      w: pw, h: ph, dpr, ram: null, gpuGen: "Unknown", year: null,
+    };
+  }
+
+  /* ═══════════ WEBGL DIAGNOSTICS ═══════════════════════════════════════ */
+
+  function getWebGLInfo() {
+    const canvas = document.createElement("canvas");
+    let gl = canvas.getContext("webgl2", { failIfMajorPerformanceCaveat: false });
+    let version = 2;
+    if (!gl) {
+      gl = canvas.getContext("webgl") || canvas.getContext("experimental-webgl");
+      version = gl ? 1 : 0;
+    }
+    if (!gl) return { supported: false };
+
+    const dbg = gl.getExtension("WEBGL_debug_renderer_info");
+    const info = {
+      supported: true,
+      version,
+      vendor:    gl.getParameter(gl.VENDOR),
+      renderer:  gl.getParameter(gl.RENDERER),
+      glVersion: gl.getParameter(gl.VERSION),
+      glslVersion: gl.getParameter(gl.SHADING_LANGUAGE_VERSION),
+      unmaskedVendor:   dbg ? gl.getParameter(dbg.UNMASKED_VENDOR_WEBGL)   : null,
+      unmaskedRenderer: dbg ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : null,
+      maxTexture:        gl.getParameter(gl.MAX_TEXTURE_SIZE),
+      maxCubeMap:        gl.getParameter(gl.MAX_CUBE_MAP_TEXTURE_SIZE),
+      maxRenderBuffer:   gl.getParameter(gl.MAX_RENDERBUFFER_SIZE),
+      maxViewport:       gl.getParameter(gl.MAX_VIEWPORT_DIMS),
+      maxTexUnits:       gl.getParameter(gl.MAX_TEXTURE_IMAGE_UNITS),
+      maxCombinedUnits:  gl.getParameter(gl.MAX_COMBINED_TEXTURE_IMAGE_UNITS),
+      maxVertexAttribs:  gl.getParameter(gl.MAX_VERTEX_ATTRIBS),
+      maxVaryings:       gl.getParameter(gl.MAX_VARYING_VECTORS),
+      maxVertexUniforms: gl.getParameter(gl.MAX_VERTEX_UNIFORM_VECTORS),
+      maxFragUniforms:   gl.getParameter(gl.MAX_FRAGMENT_UNIFORM_VECTORS),
+      depthBits:         gl.getParameter(gl.DEPTH_BITS),
+      stencilBits:       gl.getParameter(gl.STENCIL_BITS),
+      antialias:         gl.getContextAttributes()?.antialias ?? null,
+      extensions:        gl.getSupportedExtensions() || [],
+    };
+
+    /* Compression formats — order matters for iOS verdict */
+    const codecs = [
+      { id: "ASTC",   ext: "WEBGL_compressed_texture_astc",      desc: "Modern, best for iOS A8+",   ratio: "8×" },
+      { id: "ETC2",   ext: "WEBGL_compressed_texture_etc",       desc: "Required for WebGL 2",       ratio: "6×" },
+      { id: "PVRTC",  ext: "WEBGL_compressed_texture_pvrtc",     desc: "Legacy iOS (pre-A8)",        ratio: "8×" },
+      { id: "ETC1",   ext: "WEBGL_compressed_texture_etc1",      desc: "Older Android",              ratio: "6×" },
+      { id: "S3TC",   ext: "WEBGL_compressed_texture_s3tc",      desc: "Desktop / DXT",              ratio: "6×" },
+      { id: "BPTC",   ext: "EXT_texture_compression_bptc",       desc: "Desktop HDR",                ratio: "4×" },
+      { id: "RGTC",   ext: "EXT_texture_compression_rgtc",       desc: "Normal maps",                ratio: "4×" },
+    ];
+    info.compression = codecs.map(c => ({ ...c, supported: !!gl.getExtension(c.ext) }));
+
+    /* Release context to free memory */
+    const lose = gl.getExtension("WEBGL_lose_context");
+    if (lose) lose.loseContext();
+
+    return info;
+  }
+
+  /* ═══════════ LIVE GPU MEMORY TEST ════════════════════════════════════ */
+
+  const memTest = (() => {
+    let abort = false;
+    let canvas, gl, textures = [];
+
+    function cleanup() {
+      try {
+        if (gl && !gl.isContextLost()) {
+          for (const t of textures) gl.deleteTexture(t);
+          const lose = gl.getExtension("WEBGL_lose_context");
+          if (lose) lose.loseContext();
+        }
+      } catch {}
+      textures = []; gl = null; canvas = null;
+    }
+
+    async function run(onTick, onDone) {
+      abort = false;
+      canvas = document.createElement("canvas");
+      gl = canvas.getContext("webgl2") || canvas.getContext("webgl");
+      if (!gl) { onDone({ ok: false, reason: "No WebGL" }); return; }
+
+      const SIZE = 1024;
+      const BYTES = SIZE * SIZE * 4;
+      const HARD_CAP = 2048; /* MB — never exceed; Safari kills tab around 1-1.5 GB */
+
+      let ctxLost = false;
+      canvas.addEventListener("webglcontextlost", () => { ctxLost = true; }, { once: true });
+
+      const pixels = new Uint8Array(BYTES);
+      for (let i = 0; i < BYTES; i += 4) {
+        pixels[i] = (i & 0xff); pixels[i+1] = ((i >> 8) & 0xff);
+        pixels[i+2] = ((i >> 16) & 0xff); pixels[i+3] = 255;
+      }
+
+      const maxIter = HARD_CAP / 4;
+      for (let i = 0; i < maxIter; i++) {
+        if (abort || ctxLost) break;
+        const tex = gl.createTexture();
+        if (!tex) break;
+        gl.bindTexture(gl.TEXTURE_2D, tex);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, SIZE, SIZE, 0, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+        const err = gl.getError();
+        if (err !== gl.NO_ERROR) {
+          gl.deleteTexture(tex);
+          onDone({ ok: true, mb: textures.length * 4, count: textures.length, reason: "WebGL OUT_OF_MEMORY (" + err + ")" });
+          cleanup();
+          return;
+        }
+        textures.push(tex);
+        const mb = textures.length * 4;
+        onTick(mb, textures.length);
+        if (i % 4 === 3) await new Promise(r => setTimeout(r, 0));
+      }
+
+      const done = {
+        ok: true,
+        mb: textures.length * 4,
+        count: textures.length,
+        reason: ctxLost ? "Context lost by browser"
+                : abort   ? "Stopped by user"
+                : "Reached test cap (" + HARD_CAP + " MB)",
+      };
+      cleanup();
+      onDone(done);
+    }
+
+    function stop() { abort = true; }
+    return { run, stop };
+  })();
+
+  /* ═══════════ DEVICE INFO ═════════════════════════════════════════════ */
+
+  async function getBattery() {
+    if (!navigator.getBattery) return "Not available";
+    try {
+      const b = await navigator.getBattery();
+      return `${b.charging ? "⚡ " : ""}${Math.round(b.level * 100)}%`;
+    } catch { return "Not available"; }
+  }
+
+  function getNetwork() {
+    const c = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+    if (!c) return "Unknown";
+    const t = c.effectiveType || c.type || "";
+    if (t === "4g" || t === "5g") return t.toUpperCase();
+    if (t === "wifi" || c.type === "wifi") return "Wi-Fi";
+    if (t === "3g") return "3G";
+    if (t === "2g") return "2G";
+    return t || "Unknown";
+  }
+
+  function getBrowserInfo() {
+    const ua = navigator.userAgent;
+    if (/CriOS\/([\d.]+)/.test(ua))           return `Chrome ${RegExp.$1} (iOS WebKit)`;
+    if (/FxiOS\/([\d.]+)/.test(ua))           return `Firefox ${RegExp.$1} (iOS WebKit)`;
+    if (/EdgiOS\/([\d.]+)/.test(ua))          return `Edge ${RegExp.$1} (iOS WebKit)`;
+    if (/Edg\/([\d.]+)/.test(ua))             return `Edge ${RegExp.$1}`;
+    if (/OPR\/([\d.]+)/.test(ua))             return `Opera ${RegExp.$1}`;
+    if (/Chrome\/([\d.]+)/.test(ua))          return `Chrome ${RegExp.$1}`;
+    if (/Firefox\/([\d.]+)/.test(ua))         return `Firefox ${RegExp.$1}`;
+    if (/Version\/([\d.]+).*Safari/.test(ua)) return `Safari ${RegExp.$1}`;
+    return "Unknown Browser";
+  }
+
+  async function getStorage() {
+    try {
+      if (navigator.storage?.estimate) {
+        const e = await navigator.storage.estimate();
+        return {
+          quotaMB: Math.round(e.quota / 1048576),
+          usageMB: Math.round(e.usage / 1048576),
+        };
+      }
+    } catch {}
+    return null;
+  }
+
+  function getJSHeap() {
+    const m = performance?.memory;
+    if (!m) return null;
+    return {
+      usedMB:  Math.round(m.usedJSHeapSize  / 1048576),
+      totalMB: Math.round(m.totalJSHeapSize / 1048576),
+      limitMB: Math.round(m.jsHeapSizeLimit / 1048576),
+    };
+  }
+
+  /* ═══════════ CRASH RISK ASSESSMENT ═══════════════════════════════════ */
+
+  function assessRisk(model, gl, isIOS) {
+    let score = 0;
+    const reasons = [];
+
+    if (!gl.supported) {
+      return { score: 100, level: "critical", reasons: [{ icon: "ti-x", text: "WebGL not supported — slot game cannot run." }] };
+    }
+
+    if (model.ram != null) {
+      if (model.ram <= 1) { score += 40; reasons.push({ icon: "ti-alert-triangle", text: `Only ~${model.ram} GB RAM — Safari will kill the tab fast.` }); }
+      else if (model.ram <= 2) { score += 25; reasons.push({ icon: "ti-alert-triangle", text: `Just ${model.ram} GB RAM — keep total assets under ~150 MB.` }); }
+      else if (model.ram <= 3) { score += 12; reasons.push({ icon: "ti-info-circle", text: `${model.ram} GB RAM — moderate headroom.` }); }
+    } else if (navigator.deviceMemory && navigator.deviceMemory < 4) {
+      score += 20; reasons.push({ icon: "ti-alert-triangle", text: `Low device memory (~${navigator.deviceMemory} GB).` });
+    }
+
+    if (gl.maxTexture < 8192) {
+      score += 35;
+      reasons.push({ icon: "ti-photo-x", text: `Texture limit ${gl.maxTexture}px — large slot reels won't upload.` });
+    } else if (gl.maxTexture < 16384) {
+      score += 10;
+      reasons.push({ icon: "ti-info-circle", text: `Texture limit ${gl.maxTexture}px — keep assets ≤ 4096px.` });
+    }
+
+    if (isIOS) {
+      const hasASTC  = gl.compression.find(c => c.id === "ASTC")?.supported;
+      const hasPVRTC = gl.compression.find(c => c.id === "PVRTC")?.supported;
+      if (!hasASTC && !hasPVRTC) {
+        score += 25;
+        reasons.push({ icon: "ti-package-off", text: "No iOS texture compression — every asset is uncompressed in VRAM." });
+      } else if (!hasASTC) {
+        score += 8;
+        reasons.push({ icon: "ti-info-circle", text: "Only PVRTC available — use ASTC where possible on A8+." });
+      }
+    }
+
+    if (window.devicePixelRatio >= 3) {
+      score += 10;
+      reasons.push({ icon: "ti-aspect-ratio", text: `DPR ${window.devicePixelRatio}× — each rendered pixel costs 9× the memory.` });
+    }
+
+    if (isIOS && model.year && model.year <= 2018) {
+      score += 10;
+      reasons.push({ icon: "ti-history", text: `Older chip (${model.gpuGen}, ${model.year}) — limited Safari memory budget.` });
+    }
+
+    if (isIOS && window.navigator.standalone !== true) {
+      reasons.push({ icon: "ti-layout-bottombar", text: "Running in Safari (browser). Home-screen PWA mode gets more memory headroom." });
+    }
+
+    score = Math.min(100, score);
+    const level = score >= 60 ? "critical" : score >= 30 ? "caution" : "safe";
+
+    if (reasons.length === 0)
+      reasons.push({ icon: "ti-check", text: "No red flags detected — device should handle a typical WebGL slot game." });
+
+    return { score, level, reasons };
+  }
+
+  /* ═══════════ RECOMMENDATIONS ═════════════════════════════════════════ */
+
+  function buildRecommendations(model, gl, isIOS) {
+    const recs = [];
+    const ramGB  = model.ram ?? navigator.deviceMemory ?? 4;
+    const budget = ramGB <= 1 ? 80 : ramGB <= 2 ? 150 : ramGB <= 3 ? 250 : ramGB <= 4 ? 350 : 500;
+
+    recs.push({
+      icon: "ti-target",
+      title: `GPU asset budget · ~${budget} MB`,
+      body: `Safari typically kills WebGL pages on this device past roughly ${budget} MB of texture + buffer memory.`,
+    });
+
+    const maxTex = Math.min(gl.maxTexture, 4096);
+    recs.push({
+      icon: "ti-photo-square-rounded",
+      title: `Cap textures at ${maxTex} × ${maxTex}`,
+      body: `Hardware max is ${gl.maxTexture}px, but stay well under it. Atlasing 2048× textures is the sweet spot.`,
+    });
+
+    const hasASTC = gl.compression.find(c => c.id === "ASTC")?.supported;
+    const hasPVRTC = gl.compression.find(c => c.id === "PVRTC")?.supported;
+    if (isIOS) {
+      if (hasASTC) recs.push({
+        icon: "ti-package",
+        title: "Ship ASTC 6×6 textures",
+        body: "ASTC cuts memory ~6× on iPhone A8 and newer. The single biggest win for crash prevention.",
+      });
+      else if (hasPVRTC) recs.push({
+        icon: "ti-package",
+        title: "Ship PVRTC 4bpp textures",
+        body: "ASTC unavailable here. PVRTC still gives a ~4× memory reduction over RGBA.",
+      });
+      else recs.push({
+        icon: "ti-alert-triangle",
+        title: "No GPU texture compression",
+        body: "Compress with JPG/WebP at transport, but RGBA is what hits VRAM. Halve resolution or split scenes.",
+      });
+    }
+
+    if (window.devicePixelRatio >= 3) recs.push({
+      icon: "ti-aspect-ratio",
+      title: "Cap renderer DPR at 2",
+      body: "PixiJS / Phaser / three.js: pass max devicePixelRatio of 2. At DPR 3 the framebuffer alone is ~30 MB at 1080p.",
+    });
+
+    recs.push({
+      icon: "ti-stack-2",
+      title: "Stream reels, don't preload all",
+      body: "Load only the symbols on screen + next reel. Unload via texture.destroy() between game states.",
+    });
+
+    recs.push({
+      icon: "ti-volume",
+      title: "Limit Web Audio buffers",
+      body: "Decoded PCM audio also lives in memory. Use sprite sheets and prefer .ogg/.aac short clips on iOS.",
+    });
+
+    recs.push({
+      icon: "ti-bug",
+      title: "Listen for context loss",
+      body: `canvas.addEventListener("webglcontextlost", ...) — show a recovery UI instead of letting the game freeze.`,
+    });
+
+    return recs;
+  }
+
+  /* ═══════════ RENDERING ═══════════════════════════════════════════════ */
+
+  function kv(grid, items) {
+    grid.innerHTML = items.map(it => `
+      <div class="kv">
+        <div class="kv-icon"><i class="ti ${it.icon}"></i></div>
+        <div class="kv-text">
+          <div class="kv-label">${it.label}</div>
+          <div class="kv-val">${it.val}</div>
+        </div>
+      </div>
+    `).join("");
+  }
+
+  function renderHero(model, platform, osText) {
+    $("device-name").textContent = model.name;
+    $("device-os").textContent = osText;
+    const heroI = document.querySelector(".hero-icon-wrap i");
+    if (heroI) heroI.className = `ti ${platform.icon}`;
+    $("platform-badge").innerHTML = `<i class="ti ${platform.icon}"></i> ${platform.label}`;
+  }
+
+  function renderRisk(risk) {
+    const r = 84, C = 2 * Math.PI * r;
+    const offset = C * (1 - risk.score / 100);
+    const ring = $("risk-ring-fg");
+    ring.style.strokeDashoffset = offset;
+    $("risk-score").textContent = risk.score;
+    $("risk-level").textContent = risk.level === "safe" ? "Looks Safe"
+                                : risk.level === "caution" ? "Use Caution" : "Crash Likely";
+    document.querySelector(".risk-card").dataset.level = risk.level;
+
+    $("risk-reasons").innerHTML = risk.reasons.map(r => `
+      <div class="reason">
+        <i class="ti ${r.icon}"></i>
+        <span>${r.text}</span>
+      </div>`).join("");
+  }
+
+  function renderGPU(gl) {
+    if (!gl.supported) {
+      $("gpu-profile").innerHTML = `<div class="kv kv-warn">
+        <div class="kv-icon"><i class="ti ti-x"></i></div>
+        <div class="kv-text">
+          <div class="kv-label">WebGL</div>
+          <div class="kv-val">Not supported — game cannot run.</div>
+        </div></div>`;
+      return;
+    }
+    kv($("gpu-profile"), [
+      { icon: "ti-cpu-2",        label: "Renderer",     val: gl.unmaskedRenderer || gl.renderer || "Unknown" },
+      { icon: "ti-building-factory", label: "Vendor",   val: gl.unmaskedVendor   || gl.vendor   || "Unknown" },
+      { icon: "ti-versions",     label: "WebGL",        val: `${gl.version === 2 ? "WebGL 2" : "WebGL 1"} · ${gl.glVersion}` },
+      { icon: "ti-code",         label: "GLSL",         val: gl.glslVersion || "—" },
+      { icon: "ti-color-swatch", label: "Antialias",    val: gl.antialias === null ? "—" : gl.antialias ? "Enabled" : "Disabled" },
+      { icon: "ti-stack-3",      label: "Depth/Stencil",val: `${gl.depthBits}/${gl.stencilBits} bits` },
+    ]);
+  }
+
+  function renderLimits(gl) {
+    if (!gl.supported) { $("webgl-limits").innerHTML = ""; return; }
+    const vp = Array.isArray(gl.maxViewport) ? `${gl.maxViewport[0]} × ${gl.maxViewport[1]}`
+                : `${gl.maxViewport?.[0] || "?"} × ${gl.maxViewport?.[1] || "?"}`;
+    kv($("webgl-limits"), [
+      { icon: "ti-photo",         label: "Max texture size",   val: `${fmt(gl.maxTexture)} px` },
+      { icon: "ti-cube",          label: "Max cube map size",  val: `${fmt(gl.maxCubeMap)} px` },
+      { icon: "ti-frame",         label: "Max renderbuffer",   val: `${fmt(gl.maxRenderBuffer)} px` },
+      { icon: "ti-maximize",      label: "Max viewport",       val: vp },
+      { icon: "ti-stack",         label: "Texture units",      val: `${gl.maxTexUnits} (combined ${gl.maxCombinedUnits})` },
+      { icon: "ti-vector-triangle", label: "Vertex attribs",   val: gl.maxVertexAttribs },
+      { icon: "ti-line",          label: "Varyings",           val: gl.maxVaryings },
+      { icon: "ti-variable",      label: "Uniforms (V / F)",   val: `${gl.maxVertexUniforms} / ${gl.maxFragUniforms}` },
+    ]);
+  }
+
+  function renderCodecs(gl) {
+    if (!gl.supported) { $("codec-grid").innerHTML = ""; return; }
+    $("codec-grid").innerHTML = gl.compression.map(c => `
+      <div class="codec ${c.supported ? "codec-on" : "codec-off"}">
+        <div class="codec-head">
+          <i class="ti ${c.supported ? "ti-check" : "ti-x"}"></i>
+          <span class="codec-name">${c.id}</span>
+          <span class="codec-ratio">${c.supported ? c.ratio : ""}</span>
+        </div>
+        <div class="codec-desc">${c.desc}</div>
+      </div>`).join("");
+  }
+
+  function renderExtensions(gl) {
+    if (!gl.supported) { $("ext-count").textContent = "0"; $("ext-chips").innerHTML = ""; return; }
+    $("ext-count").textContent = gl.extensions.length;
+    $("ext-chips").innerHTML = gl.extensions
+      .slice().sort()
+      .map(e => `<span class="chip">${e}</span>`).join("");
+  }
+
+  async function renderDeviceInfo(model, platform, gl) {
+    const heap = getJSHeap();
+    const storage = await getStorage();
+    const battery = await getBattery();
+    const w = screen.width, h = screen.height, r = window.devicePixelRatio || 1;
+
+    const items = [
+      { icon: "ti-cpu",            label: "CPU cores",        val: navigator.hardwareConcurrency ? `${navigator.hardwareConcurrency} cores` : "Not available" },
+      { icon: "ti-database",       label: "RAM (estimate)",   val: navigator.deviceMemory ? `~${navigator.deviceMemory} GB` : (model.ram ? `~${model.ram} GB (by model)` : "Not available") },
+      { icon: "ti-maximize",       label: "Screen",           val: `${w} × ${h} CSS · ${Math.round(w*r)} × ${Math.round(h*r)} physical` },
+      { icon: "ti-aspect-ratio",   label: "Pixel ratio",      val: `${r}×  ${r >= 2 ? "HiDPI" : ""}` },
+      { icon: "ti-browser",        label: "Browser",          val: getBrowserInfo() },
+      { icon: "ti-language",       label: "Language",         val: navigator.language || "Unknown" },
+      { icon: "ti-hand-finger",    label: "Touch points",     val: navigator.maxTouchPoints || 0 },
+      { icon: "ti-wifi",           label: "Network",          val: getNetwork() },
+      { icon: "ti-battery-2",      label: "Battery",          val: battery },
+      { icon: "ti-layout-bottombar", label: "PWA mode",       val: window.navigator.standalone === true ? "Home-screen (more RAM)" : "In Safari browser" },
+    ];
+
+    if (heap) items.push({
+      icon: "ti-stack-2", label: "JS heap (Chrome)",
+      val: `${heap.usedMB} / ${heap.totalMB} MB · limit ${heap.limitMB} MB`,
+    });
+    if (storage) items.push({
+      icon: "ti-database-cog", label: "Storage quota",
+      val: `${fmt(storage.usageMB)} / ${fmt(storage.quotaMB)} MB`,
+    });
+
+    kv($("device-info"), items);
+  }
+
+  function renderRecommendations(recs) {
+    $("reco-list").innerHTML = recs.map(r => `
+      <li>
+        <span class="reco-icon"><i class="ti ${r.icon}"></i></span>
+        <div>
+          <div class="reco-title">${r.title}</div>
+          <div class="reco-body">${r.body}</div>
+        </div>
+      </li>`).join("");
+  }
+
+  function renderDump(model, platform, osText, gl, risk) {
+    const dump = {
+      timestamp: new Date().toISOString(),
+      device: { name: model.name, screen: `${screen.width}x${screen.height}@${window.devicePixelRatio}x`,
+                ramEstimateGB: model.ram, gpuGen: model.gpuGen, year: model.year },
+      platform: platform.family,
+      os: osText,
+      ua: navigator.userAgent,
+      webgl: gl.supported ? {
+        version: gl.version,
+        renderer: gl.unmaskedRenderer || gl.renderer,
+        vendor:   gl.unmaskedVendor   || gl.vendor,
+        glVersion: gl.glVersion,
+        maxTexture: gl.maxTexture,
+        maxRenderBuffer: gl.maxRenderBuffer,
+        maxCubeMap: gl.maxCubeMap,
+        maxViewport: gl.maxViewport,
+        texUnits: gl.maxTexUnits,
+        compression: gl.compression.filter(c => c.supported).map(c => c.id),
+        extensions: gl.extensions.length,
+      } : "unsupported",
+      risk: { score: risk.score, level: risk.level },
+    };
+    $("dump").textContent = JSON.stringify(dump, null, 2);
+  }
+
+  /* ═══════════ ASSET CALCULATOR ════════════════════════════════════════ */
+
+  function setupCalculator(budgetMB) {
+    const recalc = () => {
+      const count  = parseInt($("calc-count").value, 10) || 0;
+      const size   = parseInt($("calc-size").value, 10) || 1024;
+      const bpp    = parseFloat($("calc-format").value);
+      const mip    = parseFloat($("calc-mip").value);
+      const totalBytes = count * size * size * bpp * mip;
+      const totalMB = totalBytes / 1048576;
+      $("calc-total").textContent = totalMB < 1
+        ? totalMB.toFixed(2) + " MB"
+        : Math.round(totalMB) + " MB";
+
+      const pct = Math.min(100, (totalMB / budgetMB) * 100);
+      const bar = $("calc-bar");
+      bar.style.width = pct + "%";
+      bar.dataset.level = totalMB > budgetMB ? "over"
+                        : totalMB > budgetMB * 0.7 ? "warn" : "ok";
+
+      const note = $("calc-note");
+      if (totalMB > budgetMB) note.innerHTML = `<i class="ti ti-alert-triangle"></i> Exceeds ~${budgetMB} MB device budget — slot game will likely crash.`;
+      else if (totalMB > budgetMB * 0.7) note.innerHTML = `<i class="ti ti-info-circle"></i> Near device budget (${budgetMB} MB). Plan unloading between scenes.`;
+      else note.innerHTML = `<i class="ti ti-check"></i> Comfortably under ~${budgetMB} MB device budget.`;
+    };
+    ["calc-count","calc-size","calc-format","calc-mip"].forEach(id => {
+      $(id).addEventListener("input", recalc);
+      $(id).addEventListener("change", recalc);
+    });
+    recalc();
+  }
+
+  /* ═══════════ BOOT ════════════════════════════════════════════════════ */
+
+  (async () => {
+    try {
+      const hints = await getClientHints();
+      const platform = detectPlatform(hints);
+      const osText = getOSVersion(platform, hints);
+      const isIOS = platform.family === "iOS" || platform.family === "iPadOS";
+
+      const glInfo = getWebGLInfo();
+      const model = isIOS
+        ? detectiOSModel(platform.family === "iPadOS", glInfo.supported ? glInfo.maxTexture : 0)
+        : { name: { macOS: "Mac", Windows: "Windows PC", "Chrome OS": "Chromebook", Linux: "Linux PC", Android: "Android Device" }[platform.family] || "Unknown Device",
+            ram: navigator.deviceMemory, gpuGen: "Unknown", year: null };
+
+      renderHero(model, platform, osText);
+      renderGPU(glInfo);
+      renderLimits(glInfo);
+      renderCodecs(glInfo);
+      renderExtensions(glInfo);
+      await renderDeviceInfo(model, platform, glInfo);
+
+      const risk = assessRisk(model, glInfo, isIOS);
+      renderRisk(risk);
+      renderRecommendations(buildRecommendations(model, glInfo, isIOS));
+      renderDump(model, platform, osText, glInfo, risk);
+
+      const ramGB = model.ram ?? navigator.deviceMemory ?? 4;
+      const budget = ramGB <= 1 ? 80 : ramGB <= 2 ? 150 : ramGB <= 3 ? 250 : ramGB <= 4 ? 350 : 500;
+      setupCalculator(budget);
+
+      /* GPU memory test wiring */
+      const TEST_MAX_MB = 2048;
+      $("test-run").addEventListener("click", () => {
+        $("test-run").disabled = true;
+        $("test-stop").disabled = false;
+        $("test-status").textContent = "Running…";
+        const bar = $("test-bar");
+        bar.dataset.state = "running";
+        memTest.run(
+          (mb, count) => {
+            $("test-allocated").textContent = mb + " MB";
+            $("test-count").textContent = count;
+            bar.style.width = Math.min(100, (mb / TEST_MAX_MB) * 100) + "%";
+          },
+          (result) => {
+            $("test-run").disabled = false;
+            $("test-stop").disabled = true;
+            $("test-status").textContent = result.ok ? `${result.mb} MB max` : "Failed";
+            $("test-status").title = result.reason || "";
+            bar.dataset.state = "done";
+          }
+        );
+      });
+      $("test-stop").addEventListener("click", () => memTest.stop());
+
+      /* Copy dump */
+      $("copy-dump").addEventListener("click", async () => {
+        const txt = $("dump").textContent;
+        try {
+          await navigator.clipboard.writeText(txt);
+          const btn = $("copy-dump");
+          const old = btn.innerHTML;
+          btn.innerHTML = `<i class="ti ti-check"></i> Copied`;
+          setTimeout(() => { btn.innerHTML = old; }, 1500);
+        } catch {
+          const ta = document.createElement("textarea");
+          ta.value = txt; document.body.appendChild(ta); ta.select();
+          document.execCommand("copy"); ta.remove();
+        }
+      });
+    } catch (err) {
+      console.error("iOS Diagnostics error:", err);
+    }
+  })();
+})();
+</script>
+
+</body>
+</html>
